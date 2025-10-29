@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Domain Messaging Demo</title>
+  <style>
+    body {
+      background: #0d0d0d;
+      color: #f2f2f2;
+      font-family: system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      padding: 1rem;
+    }
+    .card {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 16px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 420px;
+      text-align: center;
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.4);
+    }
+    input {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #444;
+      background: #222;
+      color: white;
+      margin-bottom: 10px;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      background: #007bff;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    button:disabled {
+      background: #555;
+      cursor: not-allowed;
+    }
+    .result {
+      margin-top: 1rem;
+      background: #2b2b2b;
+      border-radius: 8px;
+      padding: 1rem;
+      text-align: left;
+      font-size: 0.9rem;
+    }
+    .chat-box {
+      margin-top: 1rem;
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 10px;
+      padding: 10px;
+      height: 200px;
+      overflow-y: auto;
+      display: none;
+    }
+    .msg {
+      margin: 6px 0;
+      padding: 8px 12px;
+      border-radius: 10px;
+      max-width: 80%;
+      display: inline-block;
+    }
+    .msg.user {
+      background: #007bff;
+      color: white;
+      align-self: flex-end;
+      float: right;
+      clear: both;
+    }
+    .msg.domain {
+      background: #333;
+      color: white;
+      align-self: flex-start;
+      float: left;
+      clear: both;
+    }
+    .chat-input {
+      margin-top: 8px;
+      display: flex;
+      gap: 6px;
+    }
+    .chat-input input {
+      flex: 1;
+      padding: 8px;
+    }
+    .footer {
+      margin-top: 1rem;
+      font-size: 0.75rem;
+      color: #777;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>💬 Domain Messaging Demo</h2>
+    <p style="font-size: 0.9rem; color: #aaa;">
+      Experimenting with DNS ↔ XMPP integration ideas.
+    </p>
+
+    <input type="text" id="domainInput" placeholder="example.com" />
+    <button id="lookupBtn" onclick="lookup()">Connect</button>
+
+    <div id="result" class="result" style="display: none;"></div>
+
+    <div id="chatBox" class="chat-box"></div>
+
+    <div class="chat-input" id="chatInput" style="display: none;">
+      <input type="text" id="msgInput" placeholder="Type message..." />
+      <button onclick="sendMsg()">Send</button>
+    </div>
+
+    <div class="footer">
+      Built for Forge Builders · DNS-native experiment
+    </div>
+  </div>
+
+  <script>
+    async function lookup() {
+      const domain = document.getElementById("domainInput").value.trim();
+      const resultBox = document.getElementById("result");
+      const btn = document.getElementById("lookupBtn");
+      const chatBox = document.getElementById("chatBox");
+      const chatInput = document.getElementById("chatInput");
+
+      if (!domain) return;
+
+      btn.disabled = true;
+      resultBox.style.display = "none";
+      chatBox.style.display = "none";
+      chatInput.style.display = "none";
+      resultBox.innerHTML = "<em>Looking up DNS records...</em>";
+
+      try {
+        const [txtRes, srvRes] = await Promise.all([
+          fetch(`https://dns.google/resolve?name=${domain}&type=TXT`).then(r => r.json()),
+          fetch(`https://dns.google/resolve?name=_xmpp._tcp.${domain}&type=SRV`).then(r => r.json())
+        ]);
+
+        const txtRecords = txtRes.Answer
+          ? txtRes.Answer.map(a => a.data.replace(/^\"|\"$/g, "")).join("<br>")
+          : "No TXT records found.";
+
+        const srvRecords = srvRes.Answer
+          ? srvRes.Answer.map(a => a.data).join("<br>")
+          : "No SRV records found.";
+
+        resultBox.innerHTML = `
+          <strong>Connected to:</strong> ${domain}<br><br>
+          <strong>TXT:</strong><br>${txtRecords}<br><br>
+          <strong>SRV:</strong><br>${srvRecords}
+        `;
+
+        chatBox.style.display = "block";
+        chatInput.style.display = "flex";
+        chatBox.innerHTML = `<div class="msg domain">Hi! This is ${domain} responding via XMPP rail 💫</div>`;
+      } catch (e) {
+        resultBox.innerHTML = "<span style='color: red;'>❌ Failed to fetch DNS data.</span>";
+      } finally {
+        resultBox.style.display = "block";
+        btn.disabled = false;
+      }
+    }
+
+    function sendMsg() {
+      const msgInput = document.getElementById("msgInput");
+      const chatBox = document.getElementById("chatBox");
+      const text = msgInput.value.trim();
+      if (!text) return;
+
+      const userMsg = document.createElement("div");
+      userMsg.className = "msg user";
+      userMsg.textContent = text;
+      chatBox.appendChild(userMsg);
+      msgInput.value = "";
+
+      // Simulated domain reply
+      setTimeout(() => {
+        const reply = document.createElement("div");
+        reply.className = "msg domain";
+        reply.textContent = "This is a simulated reply from the domain 🤖";
+        chatBox.appendChild(reply);
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }, 1000);
+
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+  </script>
+</body>
+</html>
